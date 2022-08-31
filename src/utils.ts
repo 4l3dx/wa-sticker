@@ -51,7 +51,7 @@ function ffmpegScale (input: string[], width: number, height: number, bg: string
     const filter = `[${index}:v]`
     let pad = index === 0 ? `,format=rgba,pad=512:512:-1:-1:${bg},setsar=1` : `[v${index}]`
     if (index === 0 && input.length > 1) pad += '[padded]'
-    str.push(`${filter}fps=${fps},scale=${width}:${height}:force_original_aspect_ratio=decrease${pad}`)
+    str.push(`${filter}scale=${width}:${height}:force_original_aspect_ratio=decrease${pad}`)
   })
   return str.join(';')
 }
@@ -109,13 +109,13 @@ async function ffmpegInput (file: string[]): Promise<string> {
  * @returns A buffer of the output file.
  */
 export const ffmpeg = async (input: string[], output: string, options?: StickerOptions): Promise<Buffer> => {
-  const { width, height, bg, fps, duration, quality, crop } = { ...defaultSticker, ...options }
+  const { bg, fps, duration, quality, crop } = { ...defaultSticker, ...options }
   const len = input.length
-  if (crop) input[0] = await cropInput(input[0], 512, 512)
+  if (crop) input[0] = await cropInput(input[0], 510, 510)
   const inputStr = await ffmpegInput(input)
-  const scaleStr = ffmpegScale(input, width, height, bg, fps)
+  const scaleStr = ffmpegScale(input, 510, 510, bg, fps)
   const overlayStr = ffmpegOverlay(input)
-  const cmd = `ffmpeg -y ${inputStr} -vcodec libwebp -loop 0 -t ${duration} -q:v ${quality} -filter_complex "${scaleStr}${len > 1 ? ';' + overlayStr : ''}"  ${output}`
+  const cmd = `ffmpeg -y ${inputStr} -vcodec libwebp -r ${fps} -loop 0 -t ${duration} -q:v ${quality} -filter_complex "${scaleStr}${len > 1 ? ';' + overlayStr : ''}"  ${output}`
   return await new Promise((resolve, reject) => {
     exec(cmd).on('exit', (code) => {
       if (code !== 0) throw new Error('ffmpeg failed')
