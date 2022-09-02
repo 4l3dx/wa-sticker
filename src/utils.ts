@@ -45,21 +45,21 @@ export const getStringLength = (str: string): number => {
   return len % 2 === 0 ? len : len + 1
 }
 
-function ffmpegScale (input: string[], width: number, height: number, bg: string, fps: number): string {
+function ffmpegScale (input: string[], bg: string, fps: number): string {
   const str = [] as string[]
   input.forEach((_file, index) => {
     const filter = `[${index}:v]`
     let pad = index === 0 ? `,format=rgba,pad=512:512:-1:-1:${bg},setsar=1` : `[v${index}]`
     if (index === 0 && input.length > 1) pad += '[padded]'
-    str.push(`${filter}scale=${width}:${height}:force_original_aspect_ratio=decrease${pad}`)
+    str.push(`${filter}scale=510:510:force_original_aspect_ratio=decrease${pad}`)
   })
   return str.join(';')
 }
 
-async function cropInput (input: string, width: number, height: number): Promise<string> {
+async function cropInput (input: string): Promise<string> {
   const ext = (await import('path')).extname(input)
   const output = tempFile(ext)
-  const cmd = `ffmpeg -y -i ${input} -filter_complex "crop=min(min(iw\\,ih)\\,${width}):min(min(iw\\,ih)\\,${height})" ${output}`
+  const cmd = `ffmpeg -y -i ${input} -filter_complex "scale=512:512:force_original_aspect_ratio=decrease,crop=min(min(iw\\,ih)\\,512):min(min(iw\\,ih)\\,512)" ${output}`
   return await new Promise((resolve, reject) => {
     exec(cmd).on('exit', (code) => {
       if (code !== 0) throw new Error('ffmpeg failed')
@@ -111,9 +111,9 @@ async function ffmpegInput (file: string[]): Promise<string> {
 export const ffmpeg = async (input: string[], output: string, options?: StickerOptions): Promise<Buffer> => {
   const { bg, fps, duration, quality, crop } = { ...defaultSticker, ...options }
   const len = input.length
-  if (crop) input[0] = await cropInput(input[0], 510, 510)
+  if (crop) input[0] = await cropInput(input[0])
   const inputStr = await ffmpegInput(input)
-  const scaleStr = ffmpegScale(input, 510, 510, bg, fps)
+  const scaleStr = ffmpegScale(input, bg, fps)
   const overlayStr = ffmpegOverlay(input)
   const cmd = `ffmpeg -y ${inputStr} -vcodec libwebp -r ${fps} -loop 0 -t ${duration} -q:v ${quality} -filter_complex "${scaleStr}${len > 1 ? ';' + overlayStr : ''}"  ${output}`
   return await new Promise((resolve, reject) => {
